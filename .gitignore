@@ -1,0 +1,8 @@
+/__pycache__
+/.vscode
+/chroma_db
+/chroma_db_api
+/home/eva/Desktop/dominic/quiet-spirit-469107-t6-60480c838d53.json
+/.venv
+.env
+*.json
