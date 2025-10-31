@@ -76,6 +76,8 @@ export default function ChatSectionDemo() {
   const [isListening, setIsListening] = useState(false)
   const [isEvaTyping, setIsEvaTyping] = useState(false)
   const chatEndRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const lastTranscriptRef = useRef("")
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -118,49 +120,86 @@ export default function ChatSectionDemo() {
   }
 
   const handleMicClick = () => {
-  if (!("webkitSpeechRecognition" in window)) {
-    alert("Voice recognition not supported")
-    return
-  }
+    if (!("webkitSpeechRecognition" in window)) {
+      alert("Voice recognition not supported")
+      return
+    }
 
-  const recognition = new window.webkitSpeechRecognition()
-  recognition.lang = "en-US"
-  recognition.interimResults = true
-  recognition.continuous = true
+    // Create recognition once and reuse it
+    if (!recognitionRef.current) {
+      const recognition = new window.webkitSpeechRecognition()
+      recognition.lang = "en-US"
+      recognition.interimResults = true
+      recognition.continuous = true
 
-  recognition.onstart = () => setIsListening(true)
+      recognition.onstart = () => setIsListening(true)
 
-  recognition.onresult = (event) => {
-    let interimTranscript = ""
-    let finalTranscript = ""
+      recognition.onresult = (event) => {
+        let interimTranscript = ""
+        let finalTranscript = ""
 
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-      const transcript = event.results[i][0].transcript
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript + " "
-      } else {
-        interimTranscript += transcript
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + " "
+          } else {
+            interimTranscript += transcript
+          }
+        }
+
+        const combined = (finalTranscript + interimTranscript).trim()
+        lastTranscriptRef.current = (lastTranscriptRef.current + " " + finalTranscript).trim()
+        setQuestion(combined)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+        const final = lastTranscriptRef.current?.trim() || ""
+        // Auto-send the final transcript if it's not empty
+        if (final !== "") {
+          // clear ref before sending to avoid duplicate sends
+          lastTranscriptRef.current = ""
+          handleQuestion(final)
+        }
+      }
+
+      recognitionRef.current = recognition
+    }
+
+    // Toggle start/stop
+    if (isListening) {
+      try {
+        recognitionRef.current.stop()
+      } catch (e) {
+        // ignore stop errors
+        console.warn("Error stopping recognition:", e)
+      }
+    } else {
+      try {
+        lastTranscriptRef.current = ""
+        recognitionRef.current.start()
+      } catch (e) {
+        console.warn("Error starting recognition:", e)
       }
     }
-
-    // Display live transcript in input box
-    setQuestion(finalTranscript + interimTranscript)
-  }
-
-  recognition.onend = () => {
-    setIsListening(false)
-    // Auto-send the final transcript if it's not empty
-    if (question && question.trim() !== "") {
-      handleQuestion(question)
-    }
-  }
-
-  if (isListening) {
-    recognition.stop()
-  } else {
-    recognition.start()
-  }
 }
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onresult = null
+          recognitionRef.current.onend = null
+          recognitionRef.current.onstart = null
+          recognitionRef.current.stop()
+        } catch (e) {
+          // ignore
+        }
+        recognitionRef.current = null
+      }
+    }
+  }, [])
 
 
 const renderMessage = (msg, i) => {
