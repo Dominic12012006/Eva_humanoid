@@ -71,6 +71,7 @@ function TypingDots() {
 }
 
 export default function ChatSectionDemo() {
+  const[wakeWord,setWakeword]=useState('Eva')
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState("")
   const [isListening, setIsListening] = useState(false)
@@ -78,6 +79,9 @@ export default function ChatSectionDemo() {
   const chatEndRef = useRef(null)
   const recognitionRef = useRef(null)
   const lastTranscriptRef = useRef("")
+  const wakeRecognitionRef = useRef(null)
+  const wakePausedRef = useRef(false)
+  const activeSessionRef = useRef({ fromWake: false, restartAttempts: 0 })
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -124,54 +128,14 @@ export default function ChatSectionDemo() {
       alert("Voice recognition not supported")
       return
     }
-
-    // Create recognition once and reuse it
-    if (!recognitionRef.current) {
-      const recognition = new window.webkitSpeechRecognition()
-      recognition.lang = "en-US"
-      recognition.interimResults = true
-      recognition.continuous = true
-
-      recognition.onstart = () => setIsListening(true)
-
-      recognition.onresult = (event) => {
-        let interimTranscript = ""
-        let finalTranscript = ""
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + " "
-          } else {
-            interimTranscript += transcript
-          }
-        }
-
-        const combined = (finalTranscript + interimTranscript).trim()
-        lastTranscriptRef.current = (lastTranscriptRef.current + " " + finalTranscript).trim()
-        setQuestion(combined)
-      }
-
-      recognition.onend = () => {
-        setIsListening(false)
-        const final = lastTranscriptRef.current?.trim() || ""
-        // Auto-send the final transcript if it's not empty
-        if (final !== "") {
-          // clear ref before sending to avoid duplicate sends
-          lastTranscriptRef.current = ""
-          handleQuestion(final)
-        }
-      }
-
-      recognitionRef.current = recognition
-    }
+    // Ensure the active (user) recognition exists and toggle it.
+    ensureActiveRecognition()
 
     // Toggle start/stop
     if (isListening) {
       try {
         recognitionRef.current.stop()
       } catch (e) {
-        // ignore stop errors
         console.warn("Error stopping recognition:", e)
       }
     } else {
@@ -200,6 +164,182 @@ export default function ChatSectionDemo() {
       }
     }
   }, [])
+
+  const ensureActiveRecognition = () => {
+    if (!("webkitSpeechRecognition" in window)) return
+
+    if (!recognitionRef.current) {
+      const recognition = new window.webkitSpeechRecognition()
+      recognition.lang = ""
+      recognition.interimResults = true
+      recognition.continuous = true
+
+      recognition.onstart = () => setIsListening(true)
+
+      recognition.onresult = (event) => {
+        let interimTranscript = ""
+        let finalTranscript = ""
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + " "
+          } else {
+            interimTranscript += transcript
+          }
+        }
+
+        const combined = (finalTranscript + interimTranscript).trim()
+        lastTranscriptRef.current = (lastTranscriptRef.current + " " + finalTranscript).trim()
+        setQuestion(combined)
+      }
+
+      recognition.onend = () => {
+        const final = lastTranscriptRef.current?.trim() || ""
+
+        if (activeSessionRef.current.fromWake && final === "" && activeSessionRef.current.restartAttempts < 4) {
+          activeSessionRef.current.restartAttempts += 1
+          // small delay and try to restart the active recognizer
+          setTimeout(() => {
+            try {
+              recognitionRef.current && recognitionRef.current.start()
+            } catch (e) {
+              // ignore
+            }
+          }, 300)
+          return
+        }
+
+        // Normal end-of-recognition handling: update UI and send final transcript
+        setIsListening(false)
+
+        if (final !== "") {
+          // clear ref before sending to avoid duplicate sends
+          lastTranscriptRef.current = ""
+          handleQuestion(final)
+        }
+
+  // no modal dialog to hide; transcript is shown in the input field
+
+        // If wake-word listener exists, restart it so background listening resumes.
+        // Also clear any wake-paused flag so it may restart.
+        try {
+          wakePausedRef.current = false
+          if (wakeRecognitionRef.current) {
+            setTimeout(() => {
+              try {
+                wakeRecognitionRef.current.start()
+              } catch (e) {
+              }
+            }, 300)
+          }
+        } catch (e) {
+        }
+        activeSessionRef.current = { fromWake: false, restartAttempts: 0 }
+      }
+
+      recognitionRef.current = recognition
+    }
+  }
+  useEffect(() => {
+    if (!("webkitSpeechRecognition" in window)) return
+    if (wakeRecognitionRef.current) return
+
+    try {
+      const wakeRec = new window.webkitSpeechRecognition()
+      wakeRec.lang = "en-US"
+      wakeRec.interimResults = true
+      wakeRec.continuous = true
+
+      let buffer = ""
+
+      wakeRec.onresult = (event) => {
+        let interim = ""
+        let final = ""
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const t = event.results[i][0].transcript
+          if (event.results[i].isFinal) final += t + " "
+          else interim += t
+        }
+
+        buffer = (buffer + " " + final + interim).trim().toLowerCase()
+
+        // check for wake word (word boundary)
+        const wake = (wakeWord || "eva").toLowerCase()
+        const regex = new RegExp("\\b" + wake.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "\\b", "i")
+
+        if (regex.test(buffer)) {
+          // trigger visible mic and active recognition
+          try {
+            // stop wake recognizer briefly to avoid double triggers
+            try {
+              wakePausedRef.current = true
+              wakeRec.stop()
+            } catch (e) {}
+
+            ensureActiveRecognition()
+            // give active recognizer a moment and then start
+            setTimeout(() => {
+              try {
+                lastTranscriptRef.current = ""
+                // mark this session as originating from wake-word
+                activeSessionRef.current = { fromWake: true, restartAttempts: 0 }
+                recognitionRef.current.start()
+              } catch (e) {
+                console.warn("Failed to start active recognition after wake:", e)
+              }
+            }, 120)
+          } catch (e) {
+            console.warn("Wake trigger error:", e)
+          }
+
+          // clear buffer after detection
+          buffer = ""
+        }
+      }
+
+      wakeRec.onend = () => {
+        // Only auto-restart the wake recognizer if we haven't been asked to pause it
+        try {
+          if (wakePausedRef.current) return
+          setTimeout(() => {
+            try {
+              wakeRec.start()
+            } catch (e) {
+            }
+          }, 500)
+        } catch (e) {
+
+        }
+      }
+
+      wakeRecognitionRef.current = wakeRec
+
+      try {
+        wakeRec.start()
+      } catch (e) {
+   
+
+        console.warn("Unable to start wake-word recognition automatically:", e)
+      }
+    } catch (e) {
+      console.warn("Wake-word setup failed:", e)
+    }
+
+    return () => {
+      if (wakeRecognitionRef.current) {
+        try {
+          wakeRecognitionRef.current.onresult = null
+          wakeRecognitionRef.current.onend = null
+          wakeRecognitionRef.current.stop()
+        } catch (e) {
+        }
+        wakeRecognitionRef.current = null
+      }
+    }
+  }, [wakeWord])
+
+  // Dialog handlers removed: transcript is shown in the chat input and recognition controls are on the mic button
 
 
 const renderMessage = (msg, i) => {
@@ -270,6 +410,8 @@ const renderMessage = (msg, i) => {
           {isListening && <SiriMic active={isListening} />}
         </div>
       </div>
+
+      {/* No microphone dialog — live transcript appears in the input field */}
     </div>
   )
 }
