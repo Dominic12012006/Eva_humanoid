@@ -1,11 +1,11 @@
 'use client'
 import { useRef } from 'react'
-import Gif from '@/components/home/gif'
-import Time from '@/components/home/Time'
+import Gif from '../components/home/gif'
+import Time from '../components/home/Time'
 import Link from 'next/link'
-import Collage from '@/components/home/Collage'
+import Collage from '../components/home/Collage'
 import { Settings, MessageCircle, LucideHome } from 'lucide-react'
-import BatteryIndicator from '@/components/Battery'
+import BatteryIndicator from '../components/Battery'
 
 
 

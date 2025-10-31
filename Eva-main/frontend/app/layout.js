@@ -1,10 +1,10 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import Sidebar from "@/components/Sidebar";
-import AppSidebar from "@/components/Sidebar";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import Navbar from "@/components/Navbar";
+import { SidebarProvider } from "../components/ui/sidebar";
+import Sidebar from "../components/Sidebar";
+import AppSidebar from "../components/Sidebar";
+import { ThemeProvider } from "../components/ThemeProvider";
+import Navbar from "../components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

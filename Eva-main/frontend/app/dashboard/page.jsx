@@ -1,6 +1,6 @@
 "use client"
 
-import ChatSection from '@/components/Chat'
+import ChatSection from '../../components/Chat'
 import React, { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
