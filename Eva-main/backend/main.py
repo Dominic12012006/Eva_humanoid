@@ -8,15 +8,10 @@ from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from .app import chromadb, rag_query, call_llm_norm, llm_classify
-from . import models, schemas
-from .database import engine, SessionLocal
-from .voice import audio_to_text
-import speech_recognition as sr
 import chromadb
 from . import models, schemas
 from .database import engine, SessionLocal
-import sounddevice
+
 from .app import rag_query, call_llm_norm, llm_classify
 
 # from ...open import start_listening, global_state, state_lock 
@@ -24,7 +19,6 @@ class MicStatus(BaseModel):
     mic_status: str
     last_prompt: str | None
     last_response: str | None
-
 
 
 models.Base.metadata.create_all(bind=engine)
