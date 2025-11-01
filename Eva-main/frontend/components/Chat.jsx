@@ -77,7 +77,7 @@ export default function ChatSectionDemo() {
   const [isEvaTyping, setIsEvaTyping] = useState(false)
   const chatEndRef = useRef(null)
   const recognitionRef = useRef(null)
-  const lastTranscriptRef = useRef("")
+  const finalTranscriptRef = useRef("")
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -86,9 +86,8 @@ export default function ChatSectionDemo() {
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
   const handleQuestion = async (questionText) => {
-    if (!questionText || !String(questionText).trim()) return
+    if (!questionText.trim()) return
 
-    // show user message
     const userMessage = { sender: "user", text: questionText }
     setMessages((prev) => [...prev, userMessage])
     setQuestion("")
@@ -105,9 +104,7 @@ export default function ChatSectionDemo() {
       const evaText = data?.data || "Sorry, I couldn’t get a response."
 
       await sleep(500 + Math.random() * 500)
-
-      const evaMessage = { sender: "eva", text: evaText }
-      setMessages((prev) => [...prev, evaMessage])
+      setMessages((prev) => [...prev, { sender: "eva", text: evaText }])
     } catch (err) {
       console.error("Error:", err)
       setMessages((prev) => [
@@ -121,108 +118,86 @@ export default function ChatSectionDemo() {
 
   const handleMicClick = () => {
     if (!("webkitSpeechRecognition" in window)) {
-      alert("Voice recognition not supported")
+      alert("Voice recognition not supported in this browser")
       return
     }
 
-    // Create recognition once and reuse it
     if (!recognitionRef.current) {
       const recognition = new window.webkitSpeechRecognition()
       recognition.lang = "en-US"
       recognition.interimResults = true
       recognition.continuous = true
 
-      recognition.onstart = () => setIsListening(true)
+      recognition.onstart = () => {
+        setIsListening(true)
+        setQuestion("") // clear input for new speech
+        finalTranscriptRef.current = ""
+      }
 
       recognition.onresult = (event) => {
         let interimTranscript = ""
-        let finalTranscript = ""
-
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const transcript = event.results[i][0].transcript
           if (event.results[i].isFinal) {
-            finalTranscript += transcript + " "
+            finalTranscriptRef.current += transcript + " "
           } else {
             interimTranscript += transcript
           }
         }
-
-        const combined = (finalTranscript + interimTranscript).trim()
-        lastTranscriptRef.current = (lastTranscriptRef.current + " " + finalTranscript).trim()
-        setQuestion(combined)
+        // live show the speech text
+        setQuestion((finalTranscriptRef.current + interimTranscript).trim())
       }
 
       recognition.onend = () => {
         setIsListening(false)
-        const final = lastTranscriptRef.current?.trim() || ""
-        // Auto-send the final transcript if it's not empty
-        if (final !== "") {
-          // clear ref before sending to avoid duplicate sends
-          lastTranscriptRef.current = ""
-          handleQuestion(final)
+        const finalText = finalTranscriptRef.current.trim()
+        if (finalText) {
+          handleQuestion(finalText)
+          finalTranscriptRef.current = ""
         }
+      }
+
+      recognition.onerror = (e) => {
+        console.error("Speech recognition error:", e)
+        setIsListening(false)
       }
 
       recognitionRef.current = recognition
     }
 
-    // Toggle start/stop
+    // toggle
     if (isListening) {
-      try {
-        recognitionRef.current.stop()
-      } catch (e) {
-        // ignore stop errors
-        console.warn("Error stopping recognition:", e)
-      }
+      recognitionRef.current.stop()
     } else {
-      try {
-        lastTranscriptRef.current = ""
-        recognitionRef.current.start()
-      } catch (e) {
-        console.warn("Error starting recognition:", e)
-      }
+      recognitionRef.current.start()
     }
-}
+  }
 
-  // cleanup on unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
-        try {
-          recognitionRef.current.onresult = null
-          recognitionRef.current.onend = null
-          recognitionRef.current.onstart = null
-          recognitionRef.current.stop()
-        } catch (e) {
-          // ignore
-        }
+        recognitionRef.current.stop()
         recognitionRef.current = null
       }
     }
   }, [])
 
-
-const renderMessage = (msg, i) => {
-  const isUser = msg.sender === "user"
-
-  return (
-    <div
-      key={i}
-      className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}
-    >
-      <div
-        className={`max-w-[75%] px-4 py-3 rounded-2xl leading-relaxed shadow-sm
-          ${isUser
-            ? "bg-zinc-700 text-gray-100 rounded-br-none"
-            : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
+  const renderMessage = (msg, i) => {
+    const isUser = msg.sender === "user"
+    return (
+      <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}>
+        <div
+          className={`max-w-[75%] px-4 py-3 rounded-2xl leading-relaxed shadow-sm ${
+            isUser
+              ? "bg-zinc-700 text-gray-100 rounded-br-none"
+              : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
           }`}
-      >
-        {msg.text}
+        >
+          {msg.text}
+        </div>
       </div>
-    </div>
-  )
-}
-
+    )
+  }
 
   return (
     <div className="flex flex-col h-screen p-4">
@@ -253,19 +228,13 @@ const renderMessage = (msg, i) => {
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleQuestion(question)}
         />
-        <Button
-          onClick={() => handleQuestion(question)}
-          variant="default"
-          className="flex-shrink-0"
-        >
+        <Button onClick={() => handleQuestion(question)} variant="default">
           <Send className="h-4 w-4" />
         </Button>
 
         <div className="relative flex-shrink-0">
           <Button onClick={handleMicClick} variant="outline" className="p-3">
-            <Mic
-              className={`h-4 w-4 ${isListening ? "text-purple-400" : ""}`}
-            />
+            <Mic className={`h-4 w-4 ${isListening ? "text-purple-400" : ""}`} />
           </Button>
           {isListening && <SiriMic active={isListening} />}
         </div>
