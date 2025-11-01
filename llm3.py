@@ -19,11 +19,11 @@ def get_embedding(text: str):
 # -----------------------------
 # 2. Setup Groq client (chat)
 # -----------------------------
-groq_client = Groq(os.getenv('groq_api'))
+groq_client = Groq(api_key=os.getenv('groq_api'))
 
 def call_llm_rag(prompt: str):
     sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Dont say more than what is asked of you. Keep responses to minimum length possible while answering to the best of your ability. Also add tags like [laughs], [whispers], [sarcastically] etc wherever it is required and ONLY IF IT IS REQUIRED."       
+        "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Dont say more than what is asked of you."       
     )
 
     function_convo = [
@@ -41,7 +41,7 @@ def call_llm_rag(prompt: str):
 
 def call_llm_norm(prompt: str):
     sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Dont say more than what is asked of you. Keep responses to minimum length possible while answering to the best of your ability. Also add tags like [laughs], [whispers], [sarcastically] etc wherever it is required and ONLY IF IT IS REQUIRED."       
+        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Dont say more than what is asked of you. "       
     )
 
     function_convo = [

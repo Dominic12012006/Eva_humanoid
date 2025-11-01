@@ -11,8 +11,21 @@ from pydantic import BaseModel
 from .app import chromadb, rag_query, call_llm_norm, llm_classify
 from . import models, schemas
 from .database import engine, SessionLocal
-from ...open import audio_to_text
+from .voice import audio_to_text
 import speech_recognition as sr
+import chromadb
+from . import models, schemas
+from .database import engine, SessionLocal
+import sounddevice
+from .app import rag_query, call_llm_norm, llm_classify
+
+# from ...open import start_listening, global_state, state_lock 
+class MicStatus(BaseModel):
+    mic_status: str
+    last_prompt: str | None
+    last_response: str | None
+
+
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -74,6 +87,24 @@ def get_db():
     finally:
         db.close()
 
+'''
+@app.get("/get_mic_status", response_model=MicStatus)
+def get_mic_status():
+    """Frontend polls this endpoint to check the listener's current state."""
+    with state_lock:
+        current_state = global_state.copy()
+        
+    return MicStatus(
+        mic_status=current_state.get("mic_status", "sleeping"),
+        last_prompt=current_state.get("last_prompt"),
+        last_response=current_state.get("last_response")
+    )
+'''
+
+# @app.post()
+# def listen():
+#     input=
+    
 
 # ---- Question/Response Flow ----
 def questions(user_input):

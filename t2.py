@@ -4,7 +4,10 @@ import os
 # -----------------------------
 # 0. OpenRouter API key
 # -----------------------------
-OPENROUTER_KEY = "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"
+from dotenv import load_dotenv
+load_dotenv()
+# ---------------- Groq API Setup ----------------
+OPENROUTER_KEY = os.getenv('open_router_key')
 API_URL = "https://openrouter.ai/api/v1/completions"
 
 # -----------------------------

@@ -19,8 +19,7 @@ hf_client = InferenceClient(api_key=HF_TOKEN)
 def get_embedding(text: str):
     """Return embedding vector for a given text using HF model."""
     return hf_client.feature_extraction(text, model=MODEL_NAME)
-
-groq_client = Groq(os.getenv("groq_api"))
+groq_client = Groq(api_key=os.getenv("groq_api"))
 
 def call_llm_rag(prompt: str):
     sys_msg = (
@@ -77,7 +76,7 @@ def llm_classify(prompt: str):
     return response.content
 
 
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+chroma_client = chromadb.PersistentClient(path=r"/home/eva/Desktop/dominic/chroma_db")
 
 try:
     collection = chroma_client.get_collection(name="pdf_collection")

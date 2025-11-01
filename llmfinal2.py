@@ -74,7 +74,7 @@ def extract_prompt(transcribed_text, wake_word):
 # ---------------- ASR Setup ----------------
 r = sr.Recognizer()
 wake_word = "eva"
-mic_index = 24
+mic_index = 25
 source = sr.Microphone(device_index=mic_index)
 
 # ---------------- Callback ----------------
@@ -89,6 +89,7 @@ def callback(recognizer, audio):
         if prompt_text:
             clean_prompt = extract_prompt(prompt_text, wake_word)
             if clean_prompt:
+                print("heard")
                 classify = llm_classify(clean_prompt).lower()
                 print(f"Classification: {classify}")
 
@@ -107,9 +108,8 @@ def callback(recognizer, audio):
 
                 # Add assistant response to history
                 add_to_history("assistant", res)
-                res_sum=summarize(res)
                 print(f"\nAssistant: {res}\n")
-                speak(res_sum)
+                speak(res)
                 print("done")
 
     except Exception as e:

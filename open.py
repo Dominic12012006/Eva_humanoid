@@ -42,7 +42,36 @@ def get_context_text():
     return context.strip()
 
 # ---------------- Audio Processing ----------------
+# def audio_to_text(audio_data):
+#     """
+#     Convert recorded audio to text using ElevenLabs Speech-to-Text (Scribe).
+#     Stores/overwrites a fixed .wav file each time.
+#     """
+#     try:
+#         # Define a persistent WAV file path
+#         wav_path = "/home/eva/Desktop/dominic/current_audio.wav"  # change this path if needed
 
+#         # Write the audio data to the .wav file (overwrite if it exists)
+#         wav_data = audio_data.get_wav_data()
+#         with open(wav_path, "wb") as wav_file:
+#             wav_file.write(wav_data)
+
+#         # Open and transcribe the saved file
+#         with open(wav_path, "rb") as audio_file:
+#             transcription = elevenlabs.speech_to_text.convert(
+#                 file=audio_file,
+#                 model_id="scribe_v1",      # Only model supported currently
+#                 tag_audio_events=True,     # Tag laughter/applause
+#                 diarize=True,              # Annotate speakers
+#                 # language_code="hin"      # Optional: specify language manually
+#             )
+
+#         # Return just the text
+#         return transcription.text
+
+#     except Exception as e:
+#         print("Error transcribing audio:", e)
+#         return None
 # def audio_to_text(audio_data):
 #     """Convert recorded audio to text using OpenAI's Whisper model."""
 #     try:
@@ -57,10 +86,10 @@ def get_context_text():
 #         # Now, use the temporary file for transcription
 #         with open(temp_wav_filename, "rb") as audio_file:
 #             transcription = elevenlabs.speech_to_text.convert(
-#                 file=audio_data,
+#                 file=audio_file,
 #                 model_id="scribe_v1",  # Only "scribe_v1" supported for now
 #                 tag_audio_events=True,  # Tag events like laughter, applause
-#                 language_code="eng",     # Or None to auto-detect
+#                 language_code="hin",     # Or None to auto-detect
 #                 diarize=True             # Annotate who is speaking
 #             )
 #             return transcription.text
@@ -72,7 +101,7 @@ def get_context_text():
 #         if os.path.exists(temp_wav_filename):
 #             os.remove(temp_wav_filename)
 
-def audio_to_text(audio_data):
+def checkwake(audio_data):
     try:
         # Convert recorded audio to BytesIO
         audio_file = io.BytesIO(audio_data.get_wav_data())
@@ -83,6 +112,24 @@ def audio_to_text(audio_data):
             model_id="scribe_v1",      # ElevenLabs transcription model
             tag_audio_events=False,    # optional: True if you want events
             language_code="eng",
+            diarize=False              # optional: True if multiple speakers
+        )
+
+        return transcription.text
+    except Exception as e:
+        print("Error transcribing audio:", e)
+        return None
+def audio_to_text(audio_data):
+    try:
+        # Convert recorded audio to BytesIO
+        audio_file = io.BytesIO(audio_data.get_wav_data())
+
+        # Call ElevenLabs speech-to-text
+        transcription = elevenlabs.speech_to_text.convert(
+            file=audio_file,
+            model_id="scribe_v1",      # ElevenLabs transcription model
+            tag_audio_events=False,    # optional: True if you want events
+            # language_code="eng",
             diarize=False              # optional: True if multiple speakers
         )
 
@@ -110,10 +157,11 @@ def callback(recognizer, audio):
         return
 
     try:
-        prompt_text = audio_to_text(audio)
-        if prompt_text:
-            clean_prompt = extract_prompt(prompt_text, wake_word)
-            if clean_prompt:
+        check=checkwake(audio)
+        if check:
+            clean_promptc = extract_prompt(check, wake_word)
+            if clean_promptc:
+                clean_prompt = audio_to_text(audio)
                 classify = llm_classify(clean_prompt).lower()
                 print(f"Classification: {classify}")
 

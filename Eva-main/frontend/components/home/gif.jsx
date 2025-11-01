@@ -82,7 +82,7 @@ const Gif = () => {
         style={{ left: `${pos.left}px`, top: `${pos.top}px`, width: `${SIZE}px`, height: `${SIZE}px` }}
       >
         <video
-          src={'/chatbot.mp4'}
+          src={'/Chatbot.mp4'}
           autoPlay
           muted
           loop
