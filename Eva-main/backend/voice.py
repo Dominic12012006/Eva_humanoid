@@ -44,6 +44,24 @@ def audio_to_text(audio_data,code):
     except Exception as e:
         print("Error transcribing audio:", e)
         return None
+def audio_to_text_button(audio_data,code):
+    try:
+        # Convert recorded audio to BytesIO
+        audio_file = io.BytesIO(audio_data)
+
+        # Call ElevenLabs speech-to-text
+        transcription = elevenlabs.speech_to_text.convert(
+            file=audio_file,
+            model_id="scribe_v1",      # ElevenLabs transcription model
+            tag_audio_events=False,    # optional: True if you want events
+            language_code=code,
+            diarize=False              # optional: True if multiple speakers
+        )
+
+        return transcription.text
+    except Exception as e:
+        print("Error transcribing audio:", e)
+        return None
 
 
 

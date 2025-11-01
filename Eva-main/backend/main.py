@@ -11,8 +11,8 @@ import chromadb
 from . import models, schemas
 from .database import engine, SessionLocal
 from .background import callback
-from .app import rag_query,call_llm_norm,llm_classify,checklang
-from .voice import audio_to_text
+from .app import rag_query,call_llm_norm,llm_classify,checklang,getimage
+from .voice import audio_to_text,audio_to_text_button
 import speech_recognition as sr
 import time
 from .tts import speak
@@ -44,7 +44,7 @@ elevenlabs = ElevenLabs(
 #SET TIME LIMIT ONCE WAKE WORD IS SAID INSTEAD OF REPEATING KEYWORD
 #CHANGE WAKE WORD
 
-
+    
 conversation_history = []  # list of dicts like [{'role': 'user', 'content': '...'}, {'role': 'assistant', 'content': '...'}]
 
 def add_to_history(role, content):
@@ -95,7 +95,7 @@ def extract_prompt(transcribed_text, wake_words):
 r = sr.Recognizer()
 r.pause_threshold=1.2
 wake_words = ["eva","इवा","ईवा","ഇവ","இவா"]
-mic_index = 24
+mic_index = 25
 source = sr.Microphone(device_index=mic_index)
 
 def callback(recognizer, audio):
@@ -167,72 +167,94 @@ def start_listening():
         for i, msg in enumerate(conversation_history):
             print(f"{i+1}. {msg['role'].capitalize()}: {msg['content']}")
 
-stop_listening = None  # Declare globally so callback can access it
+stop_listening = None
+listener_thread = None
+listening_active = False
+
 
 def callback_landing(recognizer, audio):
-    global current_transcript, wake_detected, stop_listening
+    global wake_detected, stop_listening, listening_active
 
     data = audio.get_wav_data()
-    if len(data) < 1000:
+    if len(data) < 100:
         print("Warning: captured audio seems too short.")
         return
 
     try:
-        prompt = audio_to_text(audio, 'hin')
+        prompt = audio_to_text(audio, 'eng')
 
-        if prompt:
-            clean_prompt = extract_prompt(prompt, wake_words)
-            if clean_prompt:
-                # 🔹 Stop listening immediately
-                if stop_listening:
-                    print("Stopping background listener...")
-                    stop_listening(wait_for_stop=False)
-                    stop_listening = None
-                    
+        if 'eva' in prompt.lower():
+            wake_detected = True
+            print("Wake word detected!")
 
-                
-                print("done")
+            if stop_listening:
+                print("Stopping background listener...")
+                stop_listening(wait_for_stop=False)
+                stop_listening = None
+
+            # 🔹 Stop the while-loop in start_listening_landing()
+            listening_active = False
+            print("done")
 
     except Exception as e:
         print("Error in callback:", e)
 
 
 def start_listening_landing():
-    global stop_listening
-    print("Adjusting for ambient noise, please wait...")
+    global stop_listening, listening_active
+    import speech_recognition as sr
+
+    r = sr.Recognizer()
+    source = sr.Microphone()
+
+    print("Adjusting for ambient noise...")
     with source as s:
         r.adjust_for_ambient_noise(s, duration=1)
-        print(f"\nSay eva followed by your prompt.\n")
+        print("\nSay 'eva' followed by your prompt.\n")
 
-    # 🔹 Assign the background listener handle
+    listening_active = True
     stop_listening = r.listen_in_background(source, callback_landing)
 
     try:
-        while True:
+        while listening_active:
             time.sleep(0.5)
     except KeyboardInterrupt:
-        print("\nStopping ASR...")
+        print("Stopping ASR (keyboard)...")
+    finally:
         if stop_listening:
             stop_listening(wait_for_stop=False)
-            return True
-
-        
-
-
-import threading
+            stop_listening = None
+        listening_active = False
 
 
-listener_thread = None
-
-@app.post("/start-listening")
+# @app.get("/start-listening")
 def start_voice_assistant():
-    global listener_thread
-    if listener_thread and listener_thread.is_alive():
-        return {"status": "already running"}
+    global listener_thread, wake_detected
 
+    if listener_thread and listener_thread.is_alive():
+        return {"status": "already_running"}
+
+    wake_detected = False
     listener_thread = threading.Thread(target=start_listening_landing, daemon=True)
     listener_thread.start()
-    return {"status": "listening started"}
+
+    return {"status": "started"}
+start_voice_assistant()
+
+@app.get("/")
+def on_startup():
+    global wake_detected
+    wake_detected=False
+    print("sdfsdv")
+    start_voice_assistant()
+@app.get("/status")
+def get_status():    
+    global wake_detected
+    wake_detected
+    return {
+        "listening": listener_thread.is_alive() if listener_thread else False,
+        "wake_detected": wake_detected
+    }
 
 def get_db():
     db = SessionLocal()
@@ -242,7 +264,7 @@ def get_db():
         db.close()
 
 def questions(user_input):
-    clean_prompt = user_input.answer
+    clean_prompt = user_input
     classify = llm_classify(clean_prompt).lower()
     combined_prompt = f"\nUser: {clean_prompt}\nAssistant:"
     if "yes" in classify:
@@ -267,11 +289,13 @@ def get_live_text():
 
 @app.post("/recieve_response")
 def send_response(response: schemas.Questionresponse, db: Session = Depends(get_db)):
-    answer = questions(response)
+    answer = questions(response.answer)
+    imgurl=getimage(response.answer)
+    print(answer,imgurl)
     db_response = models.Response(
         type="text",
         data=answer,
-        map_data=None,
+        map_data=imgurl,
         llm_name="eva",
         confidence=18,
         timestamp=datetime.utcnow(),
@@ -279,7 +303,7 @@ def send_response(response: schemas.Questionresponse, db: Session = Depends(get_
     db.add(db_response)
     db.commit()
     db.refresh(db_response)
-    return {"data": db_response.data}
+    return {"data": db_response.data,"image":db_response.map_data}
 
 @app.post("/upload_audio")
 async def upload_audio(file: UploadFile = File(...), db: Session = Depends(get_db),lang:str=Form(...)):
@@ -294,13 +318,12 @@ async def upload_audio(file: UploadFile = File(...), db: Session = Depends(get_d
     else:
         code='eng'
     print(code)
-    text = audio_to_text(audio_bytes,code)
+    text = audio_to_text_button(audio_bytes,code)
 
     print(text)
-    class TempPrompt:
-        def __init__(self, answer):
-            self.answer = answer
 
-    answer = questions(TempPrompt(text))
-    speak(answer)
-    return {"text": text, "data":answer}
+    answer = questions(text)
+    imgurl=getimage(text)
+    print(imgurl)
+    # speak(answer)
+    return {"text": text, "data":answer, "image":imgurl}

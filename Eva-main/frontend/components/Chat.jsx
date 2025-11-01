@@ -87,17 +87,22 @@ export default function ChatSectionDemo() {
     setIsEvaTyping(true)
 
     try {
-      // send language as JSON (correct for text endpoint)
       const response = await fetch("http://127.0.0.1:8000/recieve_response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: questionText, language }),
       })
 
-      await sleep(800)
       const data = await response.json()
       const evaText = data?.data || "Sorry, I couldn’t get a response."
-      setMessages((prev) => [...prev, { sender: "eva", text: evaText }])
+      const evaImg = data?.image || null
+
+      console.log("Image from backend:", evaImg)
+
+      setMessages((prev) => [
+        ...prev,
+        { sender: "eva", text: evaText, image: evaImg },
+      ])
     } catch (err) {
       console.error("Error:", err)
       setMessages((prev) => [
@@ -128,23 +133,27 @@ export default function ChatSectionDemo() {
         const blob = new Blob(chunks, { type: "audio/wav" })
         const formData = new FormData()
         formData.append("file", blob, "recording.wav")
-        formData.append("lang", language) // ✅ use same field name as backend
+        formData.append("lang", language)
 
         setIsEvaTyping(true)
 
         const res = await fetch("http://127.0.0.1:8000/upload_audio", {
           method: "POST",
-          body: formData, // ✅ correct: multipart handled automatically
+          body: formData,
         })
 
         const data = await res.json()
         const transcript = data.text || "Could not recognize speech"
         const evaReply = data.data || "EVA couldn’t respond."
+        const evaImage =
+          data?.image
+            ? `data:image/png;base64,${data.image_base64}`
+            : data?.image || null
 
         setMessages((prev) => [
           ...prev,
           { sender: "user", text: transcript },
-          { sender: "eva", text: evaReply },
+          { sender: "eva", text: evaReply, image: evaImage },
         ])
         setIsEvaTyping(false)
       }
@@ -158,11 +167,13 @@ export default function ChatSectionDemo() {
     }
   }
 
-  // 🗨️ Renders each chat bubble
+  // 🗨️ Chat message renderer
   const renderMessage = (msg, i) => {
     const isUser = msg.sender === "user"
+
     return (
-      <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}>
+      <div key={i} className={`flex flex-col ${isUser ? "items-end" : "items-start"} px-2`}>
+        {/* 💬 Message bubble */}
         <div
           className={`max-w-[75%] px-4 py-3 rounded-2xl leading-relaxed shadow-sm ${
             isUser
@@ -172,6 +183,16 @@ export default function ChatSectionDemo() {
         >
           {msg.text}
         </div>
+
+        {/* 🖼️ Image BELOW EVA's text bubble */}
+        {!isUser && msg.image && (
+          <img
+            src={msg.image}
+            alt="EVA response"
+            onError={(e) => (e.target.style.display = "none")}
+            className="mt-2 ml-3 rounded-lg max-w-[220px] max-h-[160px] object-cover border border-zinc-700 shadow-md animate-fadeIn"
+          />
+        )}
       </div>
     )
   }
@@ -187,6 +208,7 @@ export default function ChatSectionDemo() {
         )}
 
         {messages.map((msg, i) => renderMessage(msg, i))}
+
         {isEvaTyping && (
           <Card className="self-start p-3 bg-zinc-800 text-gray-100 mr-auto flex items-center gap-2">
             <TypingDots />
@@ -197,7 +219,7 @@ export default function ChatSectionDemo() {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Bottom Input Section */}
+      {/* Input Section */}
       <div className="flex items-center gap-3 relative pt-4 border-t border-zinc-800">
         <Input
           placeholder={`Ask EVA something... (${language})`}
@@ -248,6 +270,23 @@ export default function ChatSectionDemo() {
           )}
         </div>
       </div>
+
+      {/* Image fade-in animation */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.97);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out forwards;
+        }
+      `}</style>
     </div>
   )
 }

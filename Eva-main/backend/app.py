@@ -3,7 +3,7 @@ import chromadb
 from huggingface_hub import InferenceClient
 from groq import Groq
 from fastapi import FastAPI
-
+from ddgs import DDGS
 # app=FastAPI()
 # @app.get('/question')
 # def get_question():
@@ -153,3 +153,25 @@ def checklang(prompt: str):
         
 #         answer = rag_query(query)
 #         print(f"Eva: {answer}\n")
+
+def getimage(text):
+    sys_msg = (
+        "You will be given a user input, you need to return a web query that can be passed to find images relevant to the user input. return only the query and no other explanation."       
+    )
+
+    function_convo = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": text}
+    ]
+
+    chat_completion = groq_client.chat.completions.create(
+        messages=function_convo,
+        model="llama-3.3-70b-versatile"
+    )
+
+    prompt = chat_completion.choices[0].message.content
+    results = DDGS().images(prompt, max_results=1)
+    if results:
+        return results[0]["image"]
+    else:
+        return None

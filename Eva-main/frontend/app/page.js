@@ -18,9 +18,11 @@ export default function Page() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:8000/start-listening')
+        const res = await fetch('http://localhost:8000/status',{method:'GET'})
         const data = await res.json()
-        if (data.wake === true) {
+        console.log(data)
+        if (data.wake_detected === true) {
+  
           console.log('Wake word detected → Redirecting...')
           router.push('/dashboard')
         }
