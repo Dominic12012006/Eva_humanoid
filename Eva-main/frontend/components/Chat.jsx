@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { Send, Mic, MessageSquare } from "lucide-react"
+import { Send, Mic, MessageSquare, LanguagesIcon } from "lucide-react"
 import SiriMic from "../components/SiriMic"
 
 const Input = ({ placeholder, className, value, onChange, onKeyDown }) => (
@@ -64,6 +64,8 @@ function TypingDots() {
 export default function ChatSectionDemo() {
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState("")
+  const [language, setLang] = useState("English")
+  const [showLangMenu, setShowLangMenu] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [isEvaTyping, setIsEvaTyping] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState(null)
@@ -75,47 +77,39 @@ export default function ChatSectionDemo() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isEvaTyping])
 
-  // ✅ Poll backend for wake word
-  useEffect(() => {
-    const pollWake = setInterval(async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:8000/wake_status")
-        const data = await res.json()
-        if (data.wake && !isListening) {
-          console.log("🎤 Wake word detected on backend")
-          handleMicClick()
-        }
-      } catch (e) {
-        console.error("Wake check error", e)
-      }
-    }, 300)
-    return () => clearInterval(pollWake)
-  }, [isListening])
-
+  // 🧠 Text question handler
   const handleQuestion = async (questionText) => {
     if (!questionText.trim()) return
+
     const userMessage = { sender: "user", text: questionText }
     setMessages((prev) => [...prev, userMessage])
     setQuestion("")
     setIsEvaTyping(true)
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/recieve_response", {
+      // send language as JSON (correct for text endpoint)
+      const response = await fetch("http://127.0.0.1:8000/recieve_response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer: questionText }),
+        body: JSON.stringify({ answer: questionText, language }),
       })
-      const data = await res.json()
+
+      await sleep(800)
+      const data = await response.json()
       const evaText = data?.data || "Sorry, I couldn’t get a response."
-      await sleep(500 + Math.random() * 500)
       setMessages((prev) => [...prev, { sender: "eva", text: evaText }])
     } catch (err) {
       console.error("Error:", err)
-      setMessages((prev) => [...prev, { sender: "eva", text: "Error: Could not connect to EVA." }])
+      setMessages((prev) => [
+        ...prev,
+        { sender: "eva", text: "Error: Could not connect to EVA." },
+      ])
     } finally {
       setIsEvaTyping(false)
     }
   }
 
+  // 🎤 Audio upload handler (multipart/form-data)
   const handleMicClick = async () => {
     if (isListening) {
       mediaRecorder?.stop()
@@ -127,16 +121,32 @@ export default function ChatSectionDemo() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const recorder = new MediaRecorder(stream)
       const chunks = []
+
       recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
+
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: "audio/webm" })
+        const blob = new Blob(chunks, { type: "audio/wav" })
         const formData = new FormData()
-        formData.append("file", blob, "recording.webm")
-        const res = await fetch("http://127.0.0.1:8000/upload_audio", { method: "POST", body: formData })
+        formData.append("file", blob, "recording.wav")
+        formData.append("lang", language) // ✅ use same field name as backend
+
+        setIsEvaTyping(true)
+
+        const res = await fetch("http://127.0.0.1:8000/upload_audio", {
+          method: "POST",
+          body: formData, // ✅ correct: multipart handled automatically
+        })
+
         const data = await res.json()
         const transcript = data.text || "Could not recognize speech"
         const evaReply = data.data || "EVA couldn’t respond."
-        setMessages((prev) => [...prev, { sender: "user", text: transcript }, { sender: "eva", text: evaReply }])
+
+        setMessages((prev) => [
+          ...prev,
+          { sender: "user", text: transcript },
+          { sender: "eva", text: evaReply },
+        ])
+        setIsEvaTyping(false)
       }
 
       recorder.start()
@@ -148,14 +158,16 @@ export default function ChatSectionDemo() {
     }
   }
 
+  // 🗨️ Renders each chat bubble
   const renderMessage = (msg, i) => {
     const isUser = msg.sender === "user"
     return (
       <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}>
         <div
           className={`max-w-[75%] px-4 py-3 rounded-2xl leading-relaxed shadow-sm ${
-            isUser ? "bg-zinc-700 text-gray-100 rounded-br-none"
-                    : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
+            isUser
+              ? "bg-zinc-700 text-gray-100 rounded-br-none"
+              : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
           }`}
         >
           {msg.text}
@@ -176,16 +188,19 @@ export default function ChatSectionDemo() {
 
         {messages.map((msg, i) => renderMessage(msg, i))}
         {isEvaTyping && (
-          <Card className="self-start p-3 bg-zinc-800 text-gray-100 mr-auto">
-            <TypingDots /> <span className="ml-2">EVA is thinking...</span>
+          <Card className="self-start p-3 bg-zinc-800 text-gray-100 mr-auto flex items-center gap-2">
+            <TypingDots />
+            <span className="text-sm text-gray-400">EVA is thinking...</span>
           </Card>
         )}
+
         <div ref={chatEndRef} />
       </div>
 
+      {/* Bottom Input Section */}
       <div className="flex items-center gap-3 relative pt-4 border-t border-zinc-800">
         <Input
-          placeholder="Ask EVA something..."
+          placeholder={`Ask EVA something... (${language})`}
           className="border-zinc-800"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -195,11 +210,42 @@ export default function ChatSectionDemo() {
           <Send className="h-4 w-4" />
         </Button>
 
+        {/* Mic Button */}
         <div className="relative flex-shrink-0">
           <Button onClick={handleMicClick} variant="outline" className="p-3">
             <Mic className={`h-4 w-4 ${isListening ? "text-purple-400" : ""}`} />
           </Button>
           {isListening && <SiriMic active={isListening} />}
+        </div>
+
+        {/* Language Selector */}
+        <div className="relative">
+          <Button
+            onClick={() => setShowLangMenu((prev) => !prev)}
+            variant="outline"
+            className="p-3"
+          >
+            <LanguagesIcon className="h-4 w-4" />
+          </Button>
+
+          {showLangMenu && (
+            <div className="absolute bottom-14 right-0 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg w-32 text-sm">
+              {["English", "Hindi", "Tamil"].map((l) => (
+                <div
+                  key={l}
+                  onClick={() => {
+                    setLang(l)
+                    setShowLangMenu(false)
+                  }}
+                  className={`px-4 py-2 cursor-pointer hover:bg-zinc-700 ${
+                    language === l ? "text-purple-400 font-medium" : "text-gray-200"
+                  }`}
+                >
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

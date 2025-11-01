@@ -23,7 +23,7 @@ groq_client = Groq(api_key=os.getenv("groq_api"))
 
 def call_llm_rag(prompt: str):
     sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Dont say more than what is asked of you. Keep responses to minimum length possible while answering to the best of your ability. Also add tags like [laughs], [whispers], [sarcastically] etc wherever it is required and ONLY IF IT IS REQUIRED."       
+        "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
     )
 
     function_convo = [
@@ -41,7 +41,7 @@ def call_llm_rag(prompt: str):
 
 def call_llm_norm(prompt: str):
     sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Dont say more than what is asked of you. Keep responses to minimum length possible while answering to the best of your ability. Also add tags like [laughs], [whispers], [sarcastically] etc wherever it is required and ONLY IF IT IS REQUIRED."       
+        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
     )
 
     function_convo = [
@@ -121,6 +121,25 @@ def summarize(prompt: str):
     )
 
     response = chat_completion.choices[0].message
+    return response.content
+
+def checklang(prompt: str):
+    sys_msg = (
+        "You will be given the output of a chatbot. You need to return 'YES' if the input phonetically makes an English sentence. else return 'NO' "       
+    )
+
+    function_convo = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": prompt}
+    ]
+
+    chat_completion = groq_client.chat.completions.create(
+        messages=function_convo,
+        model="llama-3.3-70b-versatile"
+    )
+    response = chat_completion.choices[0].message
+    print(response)
+
     return response.content
 
 

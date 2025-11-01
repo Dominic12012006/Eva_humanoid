@@ -1,30 +1,45 @@
 'use client'
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import Gif from '../components/home/gif'
 import Time from '../components/home/Time'
 import Link from 'next/link'
 import Collage from '../components/home/Collage'
 import { Settings, MessageCircle, LucideHome } from 'lucide-react'
 import BatteryIndicator from '../components/Battery'
-
-
+import { useRouter } from 'next/navigation'
 
 export default function Page() {
   const secondSectionRef = useRef(null)
+  const router = useRouter()
 
   const handleClick = () => {
     secondSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('http://localhost:8000/start-listening')
+        const data = await res.json()
+        if (data.wake === true) {
+          console.log('Wake word detected → Redirecting...')
+          router.push('/dashboard')
+        }
+      } catch (err) {
+        console.error('Wake check failed:', err)
+      }
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [router])
 
   return (
     <div className="snap-y snap-mandatory h-screen w-full overflow-scroll">
       <Collage />
       <div className="snap-start h-screen relative bg-transparent" onClick={handleClick}>
-         <div className='absolute tope-0 right-0'>
-            <BatteryIndicator />
-          </div>
+        <div className="absolute top-0 right-0">
+          <BatteryIndicator />
+        </div>
         <main className="h-screen flex items-center justify-center">
-         
           <div className="z-50 text-center">
             <Time />
           </div>
@@ -56,6 +71,4 @@ export default function Page() {
       </div>
     </div>
   )
-  
-
 }

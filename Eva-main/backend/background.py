@@ -147,7 +147,7 @@ def extract_prompt(transcribed_text, wake_word):
 r = sr.Recognizer()
 r.pause_threshold=1.0
 wake_word = "eva"
-mic_index = 24
+mic_index = 25
 source = sr.Microphone(device_index=mic_index)
 
 def callback(recognizer, audio):
@@ -213,5 +213,5 @@ def start_listening():
         for i, msg in enumerate(conversation_history):
             print(f"{i+1}. {msg['role'].capitalize()}: {msg['content']}")
 
-if __name__ == "__main__":
-    start_listening()
+# if __name__ == "__main__":
+#     start_listening()
