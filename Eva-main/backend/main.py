@@ -2,6 +2,7 @@ import threading
 import io
 import json
 import logging
+import time
 from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,11 +11,14 @@ from pydantic import BaseModel
 from .app import chromadb, rag_query, call_llm_norm, llm_classify
 from . import models, schemas
 from .database import engine, SessionLocal
-from ...open import start_listening,audio_to_text
+from ...open import audio_to_text
+import speech_recognition as sr
+
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 logger = logging.getLogger("uvicorn.error")
 
+# ---- CORS ----
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,26 +27,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def run_listener_in_background():
-    try:
-        start_listening()
-    except Exception as e:
-        print(f"🎙️ Voice Listener Thread died with an error: {e}")
+# ---- Globals ----
+current_transcript = ""
+transcript_lock = threading.Lock()
+recognizer = sr.Recognizer()
+mic_index = 25  # adjust for your Jetson mic index
+source = sr.Microphone(device_index=mic_index)
+
+
+# 🎧 Background listener thread
+def background_listener():
+    global current_transcript
+    print("🎤 Starting continuous microphone listener...")
+
+    with source as s:
+        recognizer.adjust_for_ambient_noise(s, duration=1)
+        print("✅ Mic ready. Listening in background...")
+
+    while True:
+        try:
+            with source as s:
+                # Capture short 3–5 sec clips continuously
+                audio = recognizer.listen(s, phrase_time_limit=4)
+                text = audio_to_text(audio)
+                if text:
+                    with transcript_lock:
+                        current_transcript = text
+                    print(f"🗣️ Heard: {text}")
+        except Exception as e:
+            print(f"🎙️ Listener error: {e}")
+        time.sleep(0.3)
+
 
 @app.on_event("startup")
-def start_voice_assistant():
-    listener_thread = threading.Thread(target=run_listener_in_background, daemon=True)
+def start_background_listener():
+    listener_thread = threading.Thread(target=background_listener, daemon=True)
     listener_thread.start()
-    print("🎙️ Voice Listener Thread started successfully.")
+    print("🎧 Background listener started successfully.")
+
+
+# ---- DB Dependency ----
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+# ---- Question/Response Flow ----
 def questions(user_input):
     clean_prompt = user_input.answer
-    print(f"🧠 Text Input Prompt: {clean_prompt}")
+    print(f"Text Input Prompt: {clean_prompt}")
     classify = llm_classify(clean_prompt).lower()
     combined_prompt = f"\nUser: {clean_prompt}\nAssistant:"
     if "yes" in classify:
@@ -50,6 +86,9 @@ def questions(user_input):
     else:
         res = call_llm_norm(combined_prompt)
     return res
+
+
+# ---- Endpoints ----
 @app.post("/recieve_response")
 def send_response(response: schemas.Questionresponse, db: Session = Depends(get_db)):
     answer = questions(response)
@@ -65,17 +104,20 @@ def send_response(response: schemas.Questionresponse, db: Session = Depends(get_
     db.commit()
     db.refresh(db_response)
     return {"data": db_response.data, "map_data": db_response.map_data}
+
+
 @app.post("/upload_audio")
 async def upload_audio(file: UploadFile = File(...), db: Session = Depends(get_db)):
     audio_bytes = await file.read()
     audio_stream = io.BytesIO(audio_bytes)
 
-    print(" Converting audio to text...")
-    text = audio_to_text(audio_stream) 
+    print("🎧 Converting uploaded audio to text...")
+    text = audio_to_text(audio_stream)
     print(f"🗣️ Transcribed Text: {text}")
 
     class TempPrompt:
-        def __init__(self, answer): self.answer = answer
+        def __init__(self, answer):
+            self.answer = answer
 
     answer = questions(TempPrompt(text))
 
@@ -92,6 +134,17 @@ async def upload_audio(file: UploadFile = File(...), db: Session = Depends(get_d
     db.refresh(db_response)
 
     return {"text": text, "data": db_response.data}
+
+
+# 🆕 Live Transcript (for frontend polling)
+@app.get("/get_live_text")
+def get_live_text():
+    with transcript_lock:
+        text_copy = current_transcript
+    return {"text": text_copy}
+
+
+# ---- Utility Endpoints ----
 @app.get("/get_all_responses", response_model=list[schemas.ResponseOut])
 def get_all_responses(limit: int = 100, db: Session = Depends(get_db)):
     responses = db.query(models.Response).order_by(models.Response.id.desc()).limit(limit).all()

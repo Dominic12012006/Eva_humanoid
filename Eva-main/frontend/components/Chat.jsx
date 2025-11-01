@@ -73,21 +73,38 @@ function TypingDots() {
 export default function ChatSectionDemo() {
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState("")
-  const [isListening, setIsListening] = useState(false)
   const [isEvaTyping, setIsEvaTyping] = useState(false)
+  const [isListening, setIsListening] = useState(true)
   const chatEndRef = useRef(null)
-  const recognitionRef = useRef(null)
-  const finalTranscriptRef = useRef("")
 
+  // Smooth scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isEvaTyping])
 
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
+  // 🧠 Poll backend for live transcript every 300ms
+  useEffect(() => {
+    let interval
+    const pollTranscript = async () => {
+      try {
+        const res = await fetch("http://127.0.0.1:8000/get_live_text")
+        const data = await res.json()
+        if (data?.text) {
+          setQuestion(data.text)
+        }
+      } catch (err) {
+        console.error("Error fetching live transcript:", err)
+      }
+    }
+
+    interval = setInterval(pollTranscript, 300)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleQuestion = async (questionText) => {
     if (!questionText.trim()) return
-
     const userMessage = { sender: "user", text: questionText }
     setMessages((prev) => [...prev, userMessage])
     setQuestion("")
@@ -103,7 +120,7 @@ export default function ChatSectionDemo() {
       const data = await res.json()
       const evaText = data?.data || "Sorry, I couldn’t get a response."
 
-      await sleep(500 + Math.random() * 500)
+      await sleep(400 + Math.random() * 400)
       setMessages((prev) => [...prev, { sender: "eva", text: evaText }])
     } catch (err) {
       console.error("Error:", err)
@@ -115,72 +132,6 @@ export default function ChatSectionDemo() {
       setIsEvaTyping(false)
     }
   }
-
-  const handleMicClick = () => {
-    if (!("webkitSpeechRecognition" in window)) {
-      alert("Voice recognition not supported in this browser")
-      return
-    }
-
-    if (!recognitionRef.current) {
-      const recognition = new window.webkitSpeechRecognition()
-      recognition.lang = "en-US"
-      recognition.interimResults = true
-      recognition.continuous = true
-
-      recognition.onstart = () => {
-        setIsListening(true)
-        setQuestion("") // clear input for new speech
-        finalTranscriptRef.current = ""
-      }
-
-      recognition.onresult = (event) => {
-        let interimTranscript = ""
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            finalTranscriptRef.current += transcript + " "
-          } else {
-            interimTranscript += transcript
-          }
-        }
-        // live show the speech text
-        setQuestion((finalTranscriptRef.current + interimTranscript).trim())
-      }
-
-      recognition.onend = () => {
-        setIsListening(false)
-        const finalText = finalTranscriptRef.current.trim()
-        if (finalText) {
-          handleQuestion(finalText)
-          finalTranscriptRef.current = ""
-        }
-      }
-
-      recognition.onerror = (e) => {
-        console.error("Speech recognition error:", e)
-        setIsListening(false)
-      }
-
-      recognitionRef.current = recognition
-    }
-
-    // toggle
-    if (isListening) {
-      recognitionRef.current.stop()
-    } else {
-      recognitionRef.current.start()
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-        recognitionRef.current = null
-      }
-    }
-  }, [])
 
   const renderMessage = (msg, i) => {
     const isUser = msg.sender === "user"
@@ -220,6 +171,7 @@ export default function ChatSectionDemo() {
         <div ref={chatEndRef} />
       </div>
 
+      {/* ---- Input + Send ---- */}
       <div className="flex items-center gap-3 relative pt-4 border-t border-zinc-800">
         <Input
           placeholder="Ask EVA something..."
@@ -232,11 +184,12 @@ export default function ChatSectionDemo() {
           <Send className="h-4 w-4" />
         </Button>
 
+        {/* Just for design continuity */}
         <div className="relative flex-shrink-0">
-          <Button onClick={handleMicClick} variant="outline" className="p-3">
+          <Button variant="outline" className="p-3">
             <Mic className={`h-4 w-4 ${isListening ? "text-purple-400" : ""}`} />
           </Button>
-          {isListening && <SiriMic active={isListening} />}
+          {isListening && <SiriMic active={true} />}
         </div>
       </div>
     </div>
