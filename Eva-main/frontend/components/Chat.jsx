@@ -52,18 +52,9 @@ function TypingDots() {
         .delay-300 {
           animation-delay: 0.3s;
         }
-
         @keyframes bounce {
-          0%,
-          80%,
-          100% {
-            transform: translateY(0);
-            opacity: 0.6;
-          }
-          40% {
-            transform: translateY(-6px);
-            opacity: 1;
-          }
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
+          40% { transform: translateY(-6px); opacity: 1; }
         }
       `}</style>
     </div>
@@ -73,35 +64,33 @@ function TypingDots() {
 export default function ChatSectionDemo() {
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState("")
+  const [isListening, setIsListening] = useState(false)
   const [isEvaTyping, setIsEvaTyping] = useState(false)
-  const [isListening, setIsListening] = useState(true)
+  const [mediaRecorder, setMediaRecorder] = useState(null)
   const chatEndRef = useRef(null)
 
-  // Smooth scroll to bottom
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isEvaTyping])
 
-  const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
-
-  // 🧠 Poll backend for live transcript every 300ms
+  // ✅ Poll backend for wake word
   useEffect(() => {
-    let interval
-    const pollTranscript = async () => {
+    const pollWake = setInterval(async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/get_live_text")
+        const res = await fetch("http://127.0.0.1:8000/wake_status")
         const data = await res.json()
-        if (data?.text) {
-          setQuestion(data.text)
+        if (data.wake && !isListening) {
+          console.log("🎤 Wake word detected on backend")
+          handleMicClick()
         }
-      } catch (err) {
-        console.error("Error fetching live transcript:", err)
+      } catch (e) {
+        console.error("Wake check error", e)
       }
-    }
-
-    interval = setInterval(pollTranscript, 300)
-    return () => clearInterval(interval)
-  }, [])
+    }, 300)
+    return () => clearInterval(pollWake)
+  }, [isListening])
 
   const handleQuestion = async (questionText) => {
     if (!questionText.trim()) return
@@ -109,27 +98,53 @@ export default function ChatSectionDemo() {
     setMessages((prev) => [...prev, userMessage])
     setQuestion("")
     setIsEvaTyping(true)
-
     try {
       const res = await fetch("http://127.0.0.1:8000/recieve_response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: questionText }),
       })
-
       const data = await res.json()
       const evaText = data?.data || "Sorry, I couldn’t get a response."
-
-      await sleep(400 + Math.random() * 400)
+      await sleep(500 + Math.random() * 500)
       setMessages((prev) => [...prev, { sender: "eva", text: evaText }])
     } catch (err) {
       console.error("Error:", err)
-      setMessages((prev) => [
-        ...prev,
-        { sender: "eva", text: "Error: Could not connect to EVA." },
-      ])
+      setMessages((prev) => [...prev, { sender: "eva", text: "Error: Could not connect to EVA." }])
     } finally {
       setIsEvaTyping(false)
+    }
+  }
+
+  const handleMicClick = async () => {
+    if (isListening) {
+      mediaRecorder?.stop()
+      setIsListening(false)
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const chunks = []
+      recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" })
+        const formData = new FormData()
+        formData.append("file", blob, "recording.webm")
+        const res = await fetch("http://127.0.0.1:8000/upload_audio", { method: "POST", body: formData })
+        const data = await res.json()
+        const transcript = data.text || "Could not recognize speech"
+        const evaReply = data.data || "EVA couldn’t respond."
+        setMessages((prev) => [...prev, { sender: "user", text: transcript }, { sender: "eva", text: evaReply }])
+      }
+
+      recorder.start()
+      setMediaRecorder(recorder)
+      setIsListening(true)
+    } catch (err) {
+      console.error("Mic error:", err)
+      alert("Microphone not available.")
     }
   }
 
@@ -139,9 +154,8 @@ export default function ChatSectionDemo() {
       <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}>
         <div
           className={`max-w-[75%] px-4 py-3 rounded-2xl leading-relaxed shadow-sm ${
-            isUser
-              ? "bg-zinc-700 text-gray-100 rounded-br-none"
-              : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
+            isUser ? "bg-zinc-700 text-gray-100 rounded-br-none"
+                    : "bg-zinc-800 text-gray-100 rounded-bl-none border border-zinc-700"
           }`}
         >
           {msg.text}
@@ -156,22 +170,19 @@ export default function ChatSectionDemo() {
         {messages.length === 0 && !isEvaTyping && (
           <div className="text-gray-500 text-center my-auto flex flex-col items-center">
             <MessageSquare className="h-8 w-8 mb-2" />
-            Start a conversation with EVA
+            Say "EVA" or click the mic to start talking.
           </div>
         )}
 
         {messages.map((msg, i) => renderMessage(msg, i))}
-
         {isEvaTyping && (
           <Card className="self-start p-3 bg-zinc-800 text-gray-100 mr-auto">
             <TypingDots /> <span className="ml-2">EVA is thinking...</span>
           </Card>
         )}
-
         <div ref={chatEndRef} />
       </div>
 
-      {/* ---- Input + Send ---- */}
       <div className="flex items-center gap-3 relative pt-4 border-t border-zinc-800">
         <Input
           placeholder="Ask EVA something..."
@@ -184,12 +195,11 @@ export default function ChatSectionDemo() {
           <Send className="h-4 w-4" />
         </Button>
 
-        {/* Just for design continuity */}
         <div className="relative flex-shrink-0">
-          <Button variant="outline" className="p-3">
+          <Button onClick={handleMicClick} variant="outline" className="p-3">
             <Mic className={`h-4 w-4 ${isListening ? "text-purple-400" : ""}`} />
           </Button>
-          {isListening && <SiriMic active={true} />}
+          {isListening && <SiriMic active={isListening} />}
         </div>
       </div>
     </div>
