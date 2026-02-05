@@ -5,8 +5,10 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = "sqlite:///./eva.db"
 
 engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    "sqlite:////home/eva/Desktop/dominic/Eva-main/backend/eva.db",
+    connect_args={"check_same_thread": False}
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+print("DATABASE IN USE:", engine.url)
 Base = declarative_base()

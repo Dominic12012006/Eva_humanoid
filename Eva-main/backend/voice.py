@@ -8,7 +8,7 @@ import tempfile
 load_dotenv()
 
 elevenlabs = ElevenLabs(
-    api_key=os.getenv("ELEVENLABS_API_KEY"),
+    api_key="sk_a70f839b9c7a8117e6550768873f589f26a8ea94bd56b4c5",
 )
 
 def audio_to_text1(audio_path):
@@ -44,24 +44,31 @@ def audio_to_text(audio_data,code):
     except Exception as e:
         print("Error transcribing audio:", e)
         return None
-def audio_to_text_button(audio_data,code):
+def audio_to_text_button(audio_data, code):
     try:
-        # Convert recorded audio to BytesIO
         audio_file = io.BytesIO(audio_data)
 
-        # Call ElevenLabs speech-to-text
         transcription = elevenlabs.speech_to_text.convert(
             file=audio_file,
-            model_id="scribe_v1",      # ElevenLabs transcription model
-            tag_audio_events=False,    # optional: True if you want events
+            model_id="scribe_v1",
+            tag_audio_events=False,
             language_code=code,
-            diarize=False              # optional: True if multiple speakers
+            diarize=False
         )
 
-        return transcription.text
+        # --- FIX: transcription.text might be None ---
+        if not transcription or transcription.text is None:
+            print("STT returned None text.")
+            return ""   # <-- always return a string
+
+        text = transcription.text.strip()
+        print("STT:", text)
+        return text
+
     except Exception as e:
         print("Error transcribing audio:", e)
-        return None
+        return ""       # <-- always return a string
+
 
 
 
@@ -124,4 +131,4 @@ def extract_post_wake_audio(audio_data, wake_word="eva"):
         with sr.AudioFile(f_out.name) as source:
             result_audio = recognizer.record(source)
     os.remove(f_out.name)
-    return result_audio
+    return None

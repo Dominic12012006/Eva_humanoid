@@ -4,6 +4,8 @@ from huggingface_hub import InferenceClient
 from groq import Groq
 from fastapi import FastAPI
 from ddgs import DDGS
+from google import genai
+from google.genai import types
 # app=FastAPI()
 # @app.get('/question')
 # def get_question():
@@ -22,10 +24,12 @@ def get_embedding(text: str):
 groq_client = Groq(api_key=os.getenv("groq_api"))
 
 def call_llm_rag(prompt: str):
+    # sys_msg = (
+    #     "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
+    # )
     sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva', u will get relevent context through RAG about the university per query.. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
+        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
     )
-
     function_convo = [
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": prompt}
@@ -33,33 +37,55 @@ def call_llm_rag(prompt: str):
 
     chat_completion = groq_client.chat.completions.create(
         messages=function_convo,
-        model="llama-3.3-70b-versatile"
+        model="groq/compound"
     )
 
     response = chat_completion.choices[0].message
     return response.content
 
 def call_llm_norm(prompt: str):
-    sys_msg = (
-        "You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives."       
+    # sys_msg = (
+    #     "Do not provide reasoning for your answers. You are a guide to the people in SRM University named 'Eva'. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives. Do not have any special symbols or try to make things bold or italics.Do not provide any links of any form Any open ended query should be assumed to be about S.R.M University"       
+    # )
+
+    # function_convo = [
+    #     {"role": "system", "content": sys_msg},
+    #     {"role": "user", "content": prompt}
+    # ]
+
+    # chat_completion = groq_client.chat.completions.create(
+    #     messages=function_convo,
+    #     model="groq/compound"
+    # )
+
+    # response = chat_completion.choices[0].message
+    # return response.content
+
+    client = genai.Client(api_key="AIzaSyARRRvfxEZkg8iUBldslZq_q570BX1IOj4")
+
+    grounding_tool = types.Tool(
+        google_search=types.GoogleSearch()
     )
 
-    function_convo = [
-        {"role": "system", "content": sys_msg},
-        {"role": "user", "content": prompt}
-    ]
-
-    chat_completion = groq_client.chat.completions.create(
-        messages=function_convo,
-        model="llama-3.3-70b-versatile"
+    config = types.GenerateContentConfig(
+        tools=[grounding_tool]
     )
 
-    response = chat_completion.choices[0].message
-    return response.content
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="System prompt:Do not provide reasoning for your answers. You are a guide to the people in SRMIST KTR University named 'Eva'. Be professional, curt and crisp in your responses. Also always respond in the same language as the language user gives. Do not have any special symbols or try to make things bold or italics.Do not provide any links of any form Any open ended query should be assumed to be about S.R.M University, Theres is an auxillary model that generates images necessary, dont say you cant make images just talk about it.Query:"+prompt,
+        config=config,
+    )
+
+    return response.text
+
 
 def llm_classify(prompt: str):
+    # sys_msg = (
+    #     "You are to act as a support to a RAG system, to decide if the user query required additional context related to srm university or not. If context is required, respond with only 'YES', if context is not required answer with only 'NO'. Answer only in 1 word either yes or no."       
+    # )
     sys_msg = (
-        "You are to act as a support to a RAG system, to decide if the user query required additional context related to srm university or not. If context is required, respond with only 'YES', if context is not required answer with only 'NO'. Answer only in 1 word either yes or no."       
+        "You are to act as a support to a chatbot system, to decide if the user query requires image context (whether specified implicitly by the student or if very clear requirement ONLY ). If context is required, respond with only 'YES', if context is not required answer with only 'NO'. Answer only in 1 word either yes or no."       
     )
 
     function_convo = [
@@ -76,14 +102,14 @@ def llm_classify(prompt: str):
     return response.content
 
 
-chroma_client = chromadb.PersistentClient(path=r"/home/eva/Desktop/dominic/chroma_db")
+# chroma_client = chromadb.PersistentClient(path=r"/home/eva/Desktop/dominic/chroma_db")
 
-try:
-    collection = chroma_client.get_collection(name="pdf_collection")
-    print("Loaded existing collection from disk.")
-except Exception as e:
-    print("Failed to load collection:", e)
-    exit(1)
+# try:
+#     collection = chroma_client.get_collection(name="pdf_collection")
+#     print("Loaded existing collection from disk.")
+# except Exception as e:
+#     print("Failed to load collection:", e)
+#     exit(1)
 
 def retrieve_documents(query: str, top_k: int = 3):
     """Compute embedding and query ChromaDB to get top_k docs."""
@@ -97,11 +123,13 @@ def retrieve_documents(query: str, top_k: int = 3):
 
 
 def rag_query(query: str):
-    context_docs = retrieve_documents(query)
-    # Combine query with retrieved documents
-    prompt = query + "\n\nContext:\n" + "\n".join(context_docs)
-    # Call Groq LLM (chat)
-    answer = call_llm_rag(prompt)
+    # context_docs = retrieve_documents(query)
+    # # Combine query with retrieved documents
+    # prompt = query + "\n\nContext:\n" + "\n".join(context_docs)
+    # # Call Groq LLM (chat)
+    print(query)
+    answer = call_llm_norm(query)
+    
     return answer
 
 
@@ -150,28 +178,30 @@ def checklang(prompt: str):
 #         if query.lower()=="exit":
 #             print("Exiting chat. Goodbye!")
 #             break
-        
 #         answer = rag_query(query)
 #         print(f"Eva: {answer}\n")
 
 def getimage(text):
-    sys_msg = (
-        "You will be given a user input, you need to return a web query that can be passed to find images relevant to the user input. return only the query and no other explanation."       
-    )
+    try:
+        sys_msg = (
+            "You will be given a user input, you need to return a web query that can be passed to find images relevant to the user input. return only the query and no other explanation."       
+        )
 
-    function_convo = [
-        {"role": "system", "content": sys_msg},
-        {"role": "user", "content": text}
-    ]
+        function_convo = [
+            {"role": "system", "content": sys_msg},
+            {"role": "user", "content": text}
+        ]
 
-    chat_completion = groq_client.chat.completions.create(
-        messages=function_convo,
-        model="llama-3.3-70b-versatile"
-    )
+        chat_completion = groq_client.chat.completions.create(
+            messages=function_convo,
+            model="llama-3.3-70b-versatile"
+        )
 
-    prompt = chat_completion.choices[0].message.content
-    results = DDGS().images(prompt, max_results=1)
-    if results:
-        return results[0]["image"]
-    else:
+        prompt = chat_completion.choices[0].message.content
+        results = DDGS().images(text, max_results=1)
+        if results:
+            return results[0]["image"]
+        else:
+            return None
+    except:
         return None

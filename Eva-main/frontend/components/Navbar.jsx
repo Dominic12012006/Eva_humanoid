@@ -5,17 +5,35 @@ import { SidebarTrigger } from './ui/sidebar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { Button } from './ui/button'
 import { Moon, Sun } from 'lucide-react'
+import Link from 'next/link'
 
 export default function Navbar() {
     const {setTheme}=useTheme()
+      const deleteAllQuestions = async () => {
+  await fetch("http://127.0.0.1:8000/delete_questions", { method: "DELETE" })
+}
+
+const deleteAllAnswers = async () => {
+  await fetch("http://127.0.0.1:8000/delete_answers", { method: "DELETE" })
+}
+const deleteAllImages = async () => {
+  await fetch("http://127.0.0.1:8000/delete_images", { method: "DELETE" })
+}
+
   return (
     <div className='w-full px-4 py-2 border-b '>
         <div className='w-full mx-auto flex justify-between items-center ml-5 px-0 py-0'>
-            <div className='font-bold text-2xl'>
-                Welcome
+            <div className='font-bold text-2xl' onClick={()=>{deleteAllAnswers() ,deleteAllImages(), deleteAllQuestions()}}>
+                <Link href='/'>
+                    Welcome
+                </Link>
+              
             </div>
             <div className='flex flex-row items-center  gap-3 mr-5'>
-                <span className='font-bold text-2xl '>EVA</span>
+                
+                 <span className='font-bold text-2xl '>EVA</span>
+               
+               
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="icon">

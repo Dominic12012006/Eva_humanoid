@@ -1,0 +1,16 @@
+
+> frontend@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.4
+   - Local:        http://localhost:3000
+   - Network:      http://10.68.187.79:3000
+
+ ✓ Starting...
+ ✓ Ready in 3.3s
+ ○ Compiling / ...
+ ✓ Compiled / in 2.5s (881 modules)
+ GET / 200 in 3744ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 513ms (543 modules)
+ GET /favicon.ico 200 in 773ms

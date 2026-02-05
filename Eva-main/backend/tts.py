@@ -6,7 +6,7 @@ from .app import summarize
 load_dotenv()
 
 elevenlabs = ElevenLabs(
-    api_key=os.getenv("ELEVENLABS_API_KEY"),
+    api_key="sk_2aa9be07efeac959f8db7e770c899a1c34019716fa0695ce"
 )
 
 def speak(content):
@@ -16,6 +16,7 @@ def speak(content):
         model_id="eleven_multilingual_v2",
         output_format="mp3_44100_128",
     )
+    print("fdv")
 
     play(audio)
 

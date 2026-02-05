@@ -7,8 +7,8 @@ import speech_recognition as sr
 from groq import Groq
 import sounddevice
 from openai import OpenAI
-from llm3 import rag_query, call_llm_norm, llm_classify,summarize
-from ttseleven import speak
+# from llm3 import rag_query, call_llm_norm, llm_classify,summarize
+# from ttseleven import speak
 import os
 import tempfile
 from pydub import AudioSegment

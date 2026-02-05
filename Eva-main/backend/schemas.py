@@ -10,7 +10,16 @@ class ResponseBase(BaseModel):
 
 class ResponseCreate(ResponseBase):
     pass
+class Show_questions(BaseModel):
+    id:int
+    question:str
 
+class Show_answer(BaseModel):
+    id:int
+    answer:str
+class Show_image(BaseModel):
+    id:int
+    image:str
 class ResponseOut(ResponseBase):
     id: int
     timestamp: datetime
@@ -20,3 +29,15 @@ class ResponseOut(ResponseBase):
 
 class Questionresponse(BaseModel):
     answer:str
+    lang:str
+
+class Admin(BaseModel):
+    email:str
+    password:str
+
+class Token(BaseModel):
+    access_token:str
+    token_type:str
+class TokenData(BaseModel):
+    email:Optional[str]=None
+
