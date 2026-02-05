@@ -59,7 +59,7 @@ transcript_lock = threading.Lock()
 load_dotenv()
 
 elevenlabs = ElevenLabs(
-    api_key="sk_e5ae4363b36e0fb9509a934a6393487b7ad7b564dea2608b",
+    api_key=os.getenv(api_key="elevenapi"),
 )
 #USE FUZZY LOGIC
 #SET TIME LIMIT ONCE WAKE WORD IS SAID INSTEAD OF REPEATING KEYWORD

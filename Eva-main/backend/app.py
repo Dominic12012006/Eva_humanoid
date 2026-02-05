@@ -61,7 +61,7 @@ def call_llm_norm(prompt: str):
     # response = chat_completion.choices[0].message
     # return response.content
 
-    client = genai.Client(api_key="AIzaSyARRRvfxEZkg8iUBldslZq_q570BX1IOj4")
+    client = genai.Client(api_key=os.getenv("googleapi"))
 
     grounding_tool = types.Tool(
         google_search=types.GoogleSearch()
@@ -111,15 +111,15 @@ def llm_classify(prompt: str):
 #     print("Failed to load collection:", e)
 #     exit(1)
 
-def retrieve_documents(query: str, top_k: int = 3):
-    """Compute embedding and query ChromaDB to get top_k docs."""
-    query_emb = get_embedding(query)
-    results = collection.query(
-        query_embeddings=[query_emb],
-        n_results=top_k,
-        include=["documents", "distances"]
-    )
-    return results["documents"][0]
+# def retrieve_documents(query: str, top_k: int = 3):
+#     """Compute embedding and query ChromaDB to get top_k docs."""
+#     query_emb = get_embedding(query)
+#     results = collection.query(
+#         query_embeddings=[query_emb],
+#         n_results=top_k,
+#         include=["documents", "distances"]
+#     )
+#     return results["documents"][0]
 
 
 def rag_query(query: str):
@@ -205,3 +205,5 @@ def getimage(text):
             return None
     except:
         return None
+    
+print(call_llm_norm("hey"))

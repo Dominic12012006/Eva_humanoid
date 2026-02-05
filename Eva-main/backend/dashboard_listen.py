@@ -13,10 +13,11 @@ from .database import SessionLocal
 from .ttsmurf import play_streaming_audio
 import time
 import sounddevice
+import os
 load_dotenv()
 models.Base.metadata.create_all(bind=engine)
 elevenlabs = ElevenLabs(
-    api_key="sk_05760397e2c1c75f201df55ac7017a3bf48345ee20ccfa1f",
+    api_key=os.getenv("elevenapi"),
 )
 # ques='Hello whats the hellu'
 # ans='Hello the name is eva'
@@ -26,7 +27,7 @@ conversation_history = []
 def add_to_history(role, content):
     """Add a new message to conversation history."""
     conversation_history.append({"role": role, "content": content})
-    # Limit history length to prevent context ovsk_1d40556411ca308475422c674adc0f1780e213cf91c41a1aerload
+    # Limit history length to prevent context overload
     if len(conversation_history) > 5:
         conversation_history.pop(0)
 

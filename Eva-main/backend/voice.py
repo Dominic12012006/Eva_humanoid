@@ -8,7 +8,7 @@ import tempfile
 load_dotenv()
 
 elevenlabs = ElevenLabs(
-    api_key="sk_a70f839b9c7a8117e6550768873f589f26a8ea94bd56b4c5",
+    api_key=os.getenv("elevenapi"),
 )
 
 def audio_to_text1(audio_path):
